@@ -404,6 +404,53 @@ module StateProofHash = struct
   end
 end
 
+module DumpState = struct
+  let method_ = "petanque/dump_state"
+
+  module Params = struct
+    type t = { st : int } [@@deriving yojson]
+  end
+
+  module Response = struct
+    type t = string [@@deriving yojson]
+  end
+
+  module Handler = struct
+    module Params = struct
+      type t = { st : State.t } [@@deriving yojson]
+    end
+
+    module Response = Response
+
+    let handler =
+      HType.Immediate (fun ~token:_ { Params.st } -> Agent.dump_state ~st ())
+  end
+end
+
+module LoadState = struct
+  let method_ = "petanque/load_state"
+
+  module Params = struct
+    type t = { state : string } [@@deriving yojson]
+  end
+
+  module Response = struct
+    type t = int [@@deriving yojson]
+  end
+
+  module Handler = struct
+    module Params = Params
+
+    module Response = struct
+      type t = State.t [@@deriving yojson]
+    end
+
+    let handler =
+      HType.Immediate
+        (fun ~token:_ { Params.state } -> Agent.load_state ~state ())
+  end
+end
+
 module ListNotations = struct
   let method_ = "petanque/list_notations_in_statement"
 
