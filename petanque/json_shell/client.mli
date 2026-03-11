@@ -50,11 +50,11 @@ module S (C : Chans) : sig
   val state_proof_hash :
     StateProofHash.Params.t -> (StateProofHash.Response.t, string) result
 
-  val dump_state :
-    DumpState.Params.t -> (DumpState.Response.t, string) result
+  val dump_raw_state :
+    DumpRawState.Params.t -> (DumpRawState.Response.t, string) result
 
-  val load_state :
-    LoadState.Params.t -> (LoadState.Response.t, string) result
+  val load_raw_state :
+    LoadRawState.Params.t -> (LoadRawState.Response.t, string) result
 
   val list_notations_in_statement :
     ListNotations.Params.t -> (ListNotations.Response.t, string) result

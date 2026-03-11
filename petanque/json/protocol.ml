@@ -404,15 +404,15 @@ module StateProofHash = struct
   end
 end
 
-module DumpState = struct
-  let method_ = "petanque/dump_state"
+module DumpRawState = struct
+  let method_ = "petanque/dump_raw_state"
 
   module Params = struct
     type t = { st : int } [@@deriving yojson]
   end
 
   module Response = struct
-    type t = string [@@deriving yojson]
+    type t = { raw_state : string } [@@deriving yojson]
   end
 
   module Handler = struct
@@ -423,15 +423,19 @@ module DumpState = struct
     module Response = Response
 
     let handler =
-      HType.Immediate (fun ~token:_ { Params.st } -> Agent.dump_state ~st ())
+      HType.Immediate
+        (fun ~token:_ { Params.st } ->
+          match Agent.dump_raw_state ~st () with
+          | Ok raw_state -> Ok Response.{ raw_state }
+          | Error err -> Error err)
   end
 end
 
-module LoadState = struct
-  let method_ = "petanque/load_state"
+module LoadRawState = struct
+  let method_ = "petanque/load_raw_state"
 
   module Params = struct
-    type t = { state : string } [@@deriving yojson]
+    type t = { raw_state : string } [@@deriving yojson]
   end
 
   module Response = struct
@@ -447,8 +451,8 @@ module LoadState = struct
 
     let handler =
       HType.Immediate
-        (fun ~token:_ { Params.state } ->
-          match Agent.load_state ~state () with
+        (fun ~token:_ { Params.raw_state } ->
+          match Agent.load_raw_state ~raw_state () with
           | Ok st -> Ok Response.{ st }
           | Error err -> Error err)
   end
