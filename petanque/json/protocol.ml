@@ -435,19 +435,22 @@ module LoadState = struct
   end
 
   module Response = struct
-    type t = int [@@deriving yojson]
+    type t = { st : int } [@@deriving yojson]
   end
 
   module Handler = struct
     module Params = Params
 
     module Response = struct
-      type t = State.t [@@deriving yojson]
+      type t = { st : State.t } [@@deriving yojson]
     end
 
     let handler =
       HType.Immediate
-        (fun ~token:_ { Params.state } -> Agent.load_state ~state ())
+        (fun ~token:_ { Params.state } ->
+          match Agent.load_state ~state () with
+          | Ok st -> Ok Response.{ st }
+          | Error err -> Error err)
   end
 end
 

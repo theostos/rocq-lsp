@@ -165,7 +165,7 @@ let run (ic, oc) =
   let* loaded = S.load_state { state = dumped } in
   let* reloaded_eq =
     S.state_equal
-      { kind = Some JAgent.Inspect.Goals; st1 = st.st; st2 = loaded }
+      { kind = Some JAgent.Inspect.Goals; st1 = st.st; st2 = loaded.st }
   in
   assert reloaded_eq;
   (* Note, in json mode de-seralization of plugins only work if we load the
