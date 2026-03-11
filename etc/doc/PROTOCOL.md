@@ -1062,7 +1062,7 @@ interface Params = { st: number }
 ```
 
 ```typescript
-interface Response = number
+interface Response = { st : number }
 ```
 
 <!-- TOC --><a name="petanquestateproofequal"></a>
