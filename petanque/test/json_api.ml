@@ -161,8 +161,8 @@ let run (ic, oc) =
   let* st = r ~st ~tac:"reflexivity." in
   let* h3 = S.state_hash { st = st.st } in
   assert (not (Int.equal h1 h3));
-  let* dumped = S.dump_state { st = st.st } in
-  let* loaded = S.load_state { state = dumped } in
+  let* dumped = S.dump_raw_state { st = st.st } in
+  let* loaded = S.load_raw_state { raw_state = dumped.raw_state } in
   let* reloaded_eq =
     S.state_equal
       { kind = Some JAgent.Inspect.Goals; st1 = st.st; st2 = loaded.st }

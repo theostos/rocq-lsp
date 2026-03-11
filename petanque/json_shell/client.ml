@@ -136,12 +136,12 @@ module S (C : Chans) = struct
     let module M = Wrap (StateProofHash) (C) in
     M.call
 
-  let dump_state =
-    let module M = Wrap (DumpState) (C) in
+  let dump_raw_state =
+    let module M = Wrap (DumpRawState) (C) in
     M.call
 
-  let load_state =
-    let module M = Wrap (LoadState) (C) in
+  let load_raw_state =
+    let module M = Wrap (LoadRawState) (C) in
     M.call
 
   let list_notations_in_statement =

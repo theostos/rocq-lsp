@@ -297,27 +297,30 @@ let hex_decode hex =
     in
     loop 0
 
-let dump_state ~st () =
+let dump_raw_state ~st () =
   try
     let raw = Marshal.to_string st [] in
     Ok (hex_encode raw)
   with exn ->
     let msg =
-      Format.asprintf "state serialization failed: %s" (Printexc.to_string exn)
+      Format.asprintf "raw state serialization failed: %s"
+        (Printexc.to_string exn)
     in
     Error (Error.make_request (System msg))
 
-let load_state ~state () =
+let load_raw_state ~raw_state () =
   let open Coq.Compat.Result.O in
   let* raw =
-    hex_decode state |> Result.map_error (fun msg -> Error.make_request (Parsing msg))
+    hex_decode raw_state
+    |> Result.map_error (fun msg -> Error.make_request (Parsing msg))
   in
   try
     let st : State.t = Marshal.from_string raw 0 in
     Ok st
   with exn ->
     let msg =
-      Format.asprintf "state deserialization failed: %s" (Printexc.to_string exn)
+      Format.asprintf "raw state deserialization failed: %s"
+        (Printexc.to_string exn)
     in
     Error (Error.make_request (System msg))
 
