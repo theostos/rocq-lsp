@@ -153,6 +153,14 @@ val run_at_pos :
   -> unit
   -> unit Run_result.t R.t
 
+(** [dump_state ~st] serializes [st] into a stable transport string. The
+    current encoding is hexadecimal over OCaml Marshal bytes. *)
+val dump_state : st:State.t -> unit -> string R.t
+
+(** [load_state ~state] deserializes a state previously produced by
+    [dump_state]. *)
+val load_state : state:string -> unit -> State.t R.t
+
 module Goal_opts : sig
   type t = { compact : bool }
 end

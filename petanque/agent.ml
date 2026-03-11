@@ -254,6 +254,73 @@ let run_at_pos ~token ?opts ~doc ~point ~command () :
     Run_result.map ~f:(fun _ -> ()) res
   | None -> Error (Error.make_request No_node_at_point)
 
+let hex_char_of_nibble n =
+  if n < 10 then Char.chr (Char.code '0' + n)
+  else Char.chr (Char.code 'a' + n - 10)
+
+let nibble_of_hex_char = function
+  | '0' .. '9' as c -> Some (Char.code c - Char.code '0')
+  | 'a' .. 'f' as c -> Some (10 + Char.code c - Char.code 'a')
+  | 'A' .. 'F' as c -> Some (10 + Char.code c - Char.code 'A')
+  | _ -> None
+
+let hex_encode s =
+  let len = String.length s in
+  let out = Bytes.create (2 * len) in
+  for i = 0 to len - 1 do
+    let code = Char.code s.[i] in
+    Bytes.set out (2 * i) (hex_char_of_nibble (code lsr 4));
+    Bytes.set out ((2 * i) + 1) (hex_char_of_nibble (code land 0x0f))
+  done;
+  Bytes.unsafe_to_string out
+
+let hex_decode hex =
+  let len = String.length hex in
+  if len mod 2 <> 0 then
+    Error
+      (Format.asprintf
+         "invalid hex encoding for state payload (odd length: %d)" len)
+  else
+    let out = Bytes.create (len / 2) in
+    let rec loop i =
+      if i = len then Ok (Bytes.unsafe_to_string out)
+      else
+        match (nibble_of_hex_char hex.[i], nibble_of_hex_char hex.[i + 1]) with
+        | Some hi, Some lo ->
+          let code = (hi lsl 4) lor lo in
+          Bytes.set out (i / 2) (Char.chr code);
+          loop (i + 2)
+        | _ ->
+          Error
+            (Format.asprintf
+               "invalid hex encoding for state payload at offset %d" i)
+    in
+    loop 0
+
+let dump_state ~st () =
+  try
+    let raw = Marshal.to_string st [] in
+    Ok (hex_encode raw)
+  with exn ->
+    let msg =
+      Format.asprintf "state serialization failed: %s" (Printexc.to_string exn)
+    in
+    Error (Error.make_request (System msg))
+
+let load_state ~state () =
+  let open Coq.Compat.Result.O in
+  let* raw =
+    hex_decode state |> Result.map_error (fun msg -> Error.make_request (Parsing msg))
+  in
+  try
+    let st : State.t = Marshal.from_string raw 0 in
+    Ok st
+  with exn ->
+    let msg =
+      Format.asprintf "state deserialization failed: %s" (Printexc.to_string exn)
+    in
+    Error (Error.make_request (System msg))
+
 module Goal_opts = struct
   type t = { compact : bool }
 
@@ -450,4 +517,4 @@ let proof_info_at_pos ~token ~doc ~point () =
   | None -> Error (Error.make_request No_node_at_point)
 
 (* See PROTOCOL.md for details on versioning *)
-let version = 3
+let version = 4
