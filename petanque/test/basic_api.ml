@@ -64,6 +64,9 @@ let snoc_test ~token ~doc =
   let* st = r ~st ~tac:"reflexivity." in
   let h3 = Agent.State.hash st.st in
   assert (not (Int.equal h1 h3));
+  let* dumped = Agent.dump_raw_state ~st:st.st () in
+  let* loaded = Agent.load_raw_state ~raw_state:dumped () in
+  assert (Agent.State.equal ~kind:Agent.State.Inspect.Goals st.st loaded);
   (* ast test *)
   let* _ast1 = Agent.ast ~token ~st:st.st ~text:"Check (fun x => x)." () in
   let* _ast2 = Agent.ast_at_pos ~doc ~point:(15, 3) () in
