@@ -39,6 +39,8 @@
     * [`petanque/state/hash`](#petanquestatehash)
     * [`petanque/state/proof/equal`](#petanquestateproofequal)
     * [`petanque/state/proof/hash`](#petanquestateproofhash)
+    * [`petanque/dump_raw_state`](#petanquedumprawstate)
+    * [`petanque/load_raw_state`](#petanqueloadrawstate)
     * [`petanque/ast`](#petanqueast)
     * [`petanque/ast_at_pos`](#petanqueastatpos)
     * [`petanque/proof_info`](#petanqueproofinfo)
@@ -812,7 +814,8 @@ withing an LSP context.
 Several resource-heavy server-side Rocq objects such as proof states
 are represented in the protocol via integer identifiers, as they
 cannot be serialized practically. These will be garbage collected
-automatically in future versions of the API.
+automatically in future versions of the API. For explicit transfer,
+`petanque/dump_raw_state` and `petanque/load_raw_state` can be used.
 
 Preliminary documentation for `pétanque` is provided below:
 
@@ -829,6 +832,9 @@ Preliminary documentation for `pétanque` is provided below:
   + **changed**: `petanque/get_state_at_pos` will not error if there is no node at point
   + **added**: new method `petanque/run_at_pos`
   + **added**: new methods `petanque/proof_info` and `petanque/proof_info_at_pos`
+- v4 (`rocq-lsp` next):
+  + **added**: `petanque/dump_raw_state` to export a serialized state payload
+  + **added**: `petanque/load_raw_state` to import a serialized state payload
 
 ### Pétanque basics
 
@@ -1056,7 +1062,7 @@ interface Params = { st: number }
 ```
 
 ```typescript
-interface Response = number
+interface Response = { st : number }
 ```
 
 <!-- TOC --><a name="petanquestateproofequal"></a>
@@ -1068,6 +1074,37 @@ Version of `petanque/state/equal` but only for the proof state.
 ### `petanque/state/proof/hash`
 
 Version of `petanque/state/hash` but only for the proof state.
+
+<!-- TOC --><a name="petanquedumprawstate"></a>
+### `petanque/dump_raw_state`
+
+Serialize a Rocq state into a transport string that can later be restored with
+`petanque/load_raw_state`.
+
+The current encoding is **base64 over OCaml Marshal bytes**.
+
+```typescript
+interface Params = { st : number }
+```
+
+```typescript
+interface Response = { raw_state : string }
+```
+
+<!-- TOC --><a name="petanqueloadrawstate"></a>
+### `petanque/load_raw_state`
+
+Load a serialized state string previously obtained via `petanque/dump_raw_state`.
+The state is inserted in the Petanque state cache and returned as a regular
+state id.
+
+```typescript
+interface Params = { raw_state : string }
+```
+
+```typescript
+interface Response = { st : number }
+```
 
 <!-- TOC --><a name="petanqueast"></a>
 ### `petanque/ast`

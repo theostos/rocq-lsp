@@ -153,6 +153,13 @@ val run_at_pos :
   -> unit
   -> unit Run_result.t R.t
 
+(** [dump_raw_state ~st] serializes [st] into a string.(base64 encoding) *)
+val dump_raw_state : st:State.t -> unit -> string R.t
+
+(** [load_raw_state ~raw_state] deserializes a state previously produced by
+    [dump_raw_state]. *)
+val load_raw_state : raw_state:string -> unit -> State.t R.t
+
 module Goal_opts : sig
   type t = { compact : bool }
 end
