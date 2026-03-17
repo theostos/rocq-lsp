@@ -59,6 +59,7 @@ class ProofDepLocation:
 class ProofDependency:
     name: str
     logical_path: str
+    physical_path: Optional[str] = None
     locations: list[ProofDepLocation] = field(default_factory=list)
 
     @classmethod
@@ -77,6 +78,11 @@ class ProofDependency:
         return cls(
             name=_expect_str("ProofDependency", "name", x["name"]),
             logical_path=_expect_str("ProofDependency", "logical_path", x.get("logical_path", "")),
+            physical_path=(
+                None
+                if x.get("physical_path") is None
+                else _expect_str("ProofDependency", "physical_path", x["physical_path"])
+            ),
             locations=locations,
         )
 
@@ -84,6 +90,7 @@ class ProofDependency:
         return {
             "name": self.name,
             "logical_path": self.logical_path,
+            "physical_path": self.physical_path,
             "locations": [loc.to_json() for loc in self.locations],
         }
 
