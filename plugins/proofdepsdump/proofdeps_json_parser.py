@@ -215,6 +215,7 @@ class ProofEntry:
     start_range: Range
     statement: str
     statement_notations: list[ProofDependency]
+    axioms: list[ProofDependency]
     initial_goals: Optional[ProofGoalState]
     steps: list[ProofStep]
 
@@ -243,12 +244,19 @@ class ProofEntry:
                 for n in _expect_list("ProofEntry.statement_notations", statement_notations_raw)
             ]
 
+        axioms_raw = x.get("axioms", [])
+        axioms = [
+            ProofDependency.from_json(a)
+            for a in _expect_list("ProofEntry.axioms", axioms_raw)
+        ]
+
         return cls(
             proof_id=_expect_int("ProofEntry", "proof_id", x["proof_id"]),
             name=_expect_str("ProofEntry", "name", x["name"]),
             start_range=Range.from_json(x["start_range"]),
             statement=statement,
             statement_notations=statement_notations,
+            axioms=axioms,
             initial_goals=None
             if initial_goals_raw is None
             else ProofGoalState.from_json(initial_goals_raw),
@@ -262,6 +270,7 @@ class ProofEntry:
             "start_range": self.start_range.to_json(),
             "statement": self.statement,
             "statement_notations": [n.to_json() for n in self.statement_notations],
+            "axioms": [a.to_json() for a in self.axioms],
             "initial_goals": None if self.initial_goals is None else self.initial_goals.to_json(),
             "steps": [s.to_json() for s in self.steps],
         }
