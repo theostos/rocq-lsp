@@ -1,0 +1,6 @@
+(library
+ (name Proofdepsdump_plugin)
+ (public_name coq-lsp.plugin.proofdepsdump)
+ (preprocess
+  (pps ppx_deriving_yojson))
+ (libraries coq-lsp.fleche coq-lsp.lsp))
