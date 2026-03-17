@@ -254,6 +254,104 @@ let run_at_pos ~token ?opts ~doc ~point ~command () :
     Run_result.map ~f:(fun _ -> ()) res
   | None -> Error (Error.make_request No_node_at_point)
 
+let raw_state_encode raw = Base64.encode_string raw
+
+let raw_state_decode raw_state =
+  Base64.decode raw_state
+  |> Result.map_error (function `Msg msg -> msg)
+
+module Raw_state_snapshot = struct
+  type t =
+    { st : State.t
+    ; parsing : Procq.frozen_t
+    }
+end
+
+let dump_raw_state ~st () =
+  try
+    let parsing = Coq.State.parsing ~st in
+    let st =
+      st |> Coq.State.to_coq |> Vernacstate.Stm.make_shallow |> Coq.State.of_coq
+    in
+    let snapshot =
+      Raw_state_snapshot.
+        { st
+        ; parsing
+        }
+    in
+    let raw = Marshal.to_string snapshot [ Marshal.Closures ] in
+    Ok (raw_state_encode raw)
+  with exn ->
+    let msg =
+      Format.asprintf "raw state serialization failed: %s"
+        (Printexc.to_string exn)
+    in
+    Error (Error.make_request (System msg))
+
+let rehydrate_library_syntax ~st =
+  let token = Coq.Limits.create_atomic () in
+  let execution =
+    let open Coq.Protect.E.O in
+    let+ st =
+      Coq.State.in_state ~token ~st
+        ~f:(fun () ->
+          let qidl =
+            Library.loaded_libraries ()
+            |> List.map (fun dp ->
+                   (Libnames.qualid_of_dirpath dp, Vernacexpr.ImportAll))
+          in
+          let _ =
+            Synterp.synterp_require ~intern:Vernacinterp.fs_intern None
+              (Some (Vernacexpr.(Import, None)))
+              qidl
+          in
+          let modrefl = Library.loaded_libraries () |> List.map (fun dp -> (None, dp)) in
+          (* Keep the lib objects in sync with the syntax replay above. *)
+          let needed =
+            Library.require_library_syntax_from_dirpath
+              ~intern:Vernacinterp.fs_intern modrefl
+          in
+          Library.require_library_from_dirpath needed;
+          Coq.State.of_coq (Vernacstate.freeze_full_state ()))
+        ()
+    in
+    fun _feedback -> st
+  in
+  protect_to_result execution
+
+let restore_parsing_state ~st ~parsing =
+  let token = Coq.Limits.create_atomic () in
+  let execution =
+    let open Coq.Protect.E.O in
+    let+ st =
+      Coq.State.in_state ~token ~st
+        ~f:(fun () ->
+          Procq.unfreeze parsing;
+          Coq.State.of_coq (Vernacstate.freeze_full_state ()))
+        ()
+    in
+    fun _feedback -> st
+  in
+  protect_to_result execution
+
+let load_raw_state ~raw_state () =
+  let open Coq.Compat.Result.O in
+  let* raw =
+    raw_state_decode raw_state
+    |> Result.map_error (fun msg -> Error.make_request (Parsing msg))
+  in
+  try
+    let snapshot : Raw_state_snapshot.t = Marshal.from_string raw 0 in
+    let* st = rehydrate_library_syntax ~st:snapshot.st in
+    let* st = restore_parsing_state ~st ~parsing:snapshot.parsing in
+    Ok st
+  with exn ->
+    let msg =
+      Format.asprintf "raw state deserialization failed: %s"
+        (Printexc.to_string exn)
+    in
+    Error (Error.make_request (System msg))
+
 module Goal_opts = struct
   type t = { compact : bool }
 
@@ -450,4 +548,4 @@ let proof_info_at_pos ~token ~doc ~point () =
   | None -> Error (Error.make_request No_node_at_point)
 
 (* See PROTOCOL.md for details on versioning *)
-let version = 3
+let version = 4

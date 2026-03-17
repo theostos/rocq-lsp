@@ -161,6 +161,13 @@ let run (ic, oc) =
   let* st = r ~st ~tac:"reflexivity." in
   let* h3 = S.state_hash { st = st.st } in
   assert (not (Int.equal h1 h3));
+  let* dumped = S.dump_raw_state { st = st.st } in
+  let* loaded = S.load_raw_state { raw_state = dumped.raw_state } in
+  let* reloaded_eq =
+    S.state_equal
+      { kind = Some JAgent.Inspect.Goals; st1 = st.st; st2 = loaded.st }
+  in
+  assert reloaded_eq;
   (* Note, in json mode de-seralization of plugins only work if we load the
      serlib plugins before *)
   let* _ast1 = S.ast { st = st.st; text = "Check (fun x => x)." } in
