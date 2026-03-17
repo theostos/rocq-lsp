@@ -263,7 +263,7 @@ let raw_state_decode raw_state =
 module Raw_state_snapshot = struct
   type t =
     { st : State.t
-    ; parsing : Procq.frozen_t
+    ; parsing : Pcoq.frozen_t
     }
 end
 
@@ -326,7 +326,7 @@ let restore_parsing_state ~st ~parsing =
     let+ st =
       Coq.State.in_state ~token ~st
         ~f:(fun () ->
-          Procq.unfreeze parsing;
+          Pcoq.unfreeze parsing;
           Coq.State.of_coq (Vernacstate.freeze_full_state ()))
         ()
     in
