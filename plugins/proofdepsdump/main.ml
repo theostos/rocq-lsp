@@ -78,6 +78,7 @@ module Proof = struct
     ; start_range : JLang.Range.t
     ; statement : string
     ; statement_notations : NotationRef.t list
+    ; axioms : Dep.t list
     ; initial_goals : GoalState.t option
     ; steps : Step.t list
     }
@@ -411,6 +412,45 @@ let dep_of_global (gr : Names.GlobRef.t) =
     Some Dep.{ name; logical_path; locations = [] }
   with _ -> None
 
+let compare_dep (d1 : Dep.t) (d2 : Dep.t) =
+  match String.compare d1.logical_path d2.logical_path with
+  | 0 -> String.compare d1.name d2.name
+  | c -> c
+
+let dep_of_axiom = function
+  | Printer.Constant kn -> dep_of_global (Names.GlobRef.ConstRef kn)
+  | Printer.Guarded gr
+  | Printer.TypeInType gr -> dep_of_global gr
+  | Printer.Positive mind
+  | Printer.UIP mind -> dep_of_global (Names.GlobRef.IndRef (mind, 0))
+
+let axioms_of_proof ~token ~(st : Coq.State.t) ~(proof_name : string) =
+  let collect () =
+    try
+      let qid = Libnames.qualid_of_string proof_name in
+      let gr = Nametab.locate qid in
+      let env = Global.env () in
+      let ts = Conv_oracle.get_transp_state (Environ.oracle env) in
+      let opaque_access = (Library.indirect_accessor [@warning "-3"]) in
+      let assumptions =
+        Assumptions.assumptions opaque_access ts [ gr ]
+      in
+      Printer.ContextObjectMap.fold
+        (fun obj _ty acc ->
+          match obj with
+          | Printer.Axiom (axiom, _parents) -> (
+            match dep_of_axiom axiom with
+            | Some dep -> dep :: acc
+            | None -> acc)
+          | _ -> acc)
+        assumptions []
+      |> List.sort_uniq compare_dep
+    with _ -> []
+  in
+  Coq.State.in_state ~token ~st ~f:(fun () -> collect ()) ()
+  |> result_of_execution
+  |> Stdlib.Option.value ~default:[]
+
 let resolve_dependency qid =
   try
     let qid = Libnames.qualid_of_string qid in
@@ -593,6 +633,7 @@ type proof_acc =
   ; start_range : JLang.Range.t
   ; mutable statement_raw : string option
   ; mutable statement_notations : NotationRef.t list
+  ; mutable axioms : Dep.t list option
   ; mutable initial_goals : GoalState.t option
   ; mutable initial_goals_set : bool
   ; mutable next_step : int
@@ -623,6 +664,7 @@ let mk_dump ~token ~(doc : Doc.t) =
         ; start_range = range
         ; statement_raw = None
         ; statement_notations = []
+        ; axioms = None
         ; initial_goals = None
         ; initial_goals_set = false
         ; next_step = 1
@@ -654,6 +696,12 @@ let mk_dump ~token ~(doc : Doc.t) =
           | None, Some _ ->
             p.statement_raw <- Some raw;
             p.statement_notations <- notations
+          | _ -> ());
+        if p.axioms = None then (
+          match (pre_name, post_name) with
+          | Some _, None ->
+            p.axioms <-
+              Some (axioms_of_proof ~token ~st:node.state ~proof_name:p.name)
           | _ -> ());
         let goals_after = goals_of_state ~token ~st:node.state in
         if not p.initial_goals_set then (
@@ -688,6 +736,7 @@ let mk_dump ~token ~(doc : Doc.t) =
              ; start_range = p.start_range
              ; statement
              ; statement_notations
+             ; axioms = Stdlib.Option.value ~default:[] p.axioms
              ; initial_goals = p.initial_goals
              ; steps
              })
