@@ -11,3 +11,5 @@ $ fcc --root=dir --plugin=coq-lsp.plugin.$name file.v
   formats
 - `goaldump`: dumps the Ast of the document in JSON format, along with
   the goals at that state.
+- `proofdepsdump`: dumps proof steps, dependencies, and goals to
+  `.json.proofdepsdump`, and AST payload to `.json.proofdepsdump.ast`.
