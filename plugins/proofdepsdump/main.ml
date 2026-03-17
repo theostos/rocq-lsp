@@ -183,31 +183,43 @@ let loc_range_of_json ~lines json =
     Some (Coq.Utils.to_range ~lines loc)
   | _ -> None
 
-type cref_occurrence =
+type qualid_occurrence =
   { qid : string
   ; range : JLang.Range.t option
   }
 
-let rec cref_occurrences ~lines acc json =
+let qualid_occurrence_of_json ~lines json =
+  match qualid_string_of_json json with
+  | None -> None
+  | Some qid ->
+    let range =
+      Stdlib.Option.bind
+        (value_for_key "loc" json)
+        (loc_range_of_json ~lines)
+    in
+    Some { qid; range }
+
+let rec qualid_occurrences ~lines acc json =
+  let acc =
+    match qualid_occurrence_of_json ~lines json with
+    | None -> acc
+    | Some occ -> occ :: acc
+  in
   let json = unwrap_v json in
   let acc =
     match json with
     | `List (`String "CRef" :: qid_json :: _) -> (
-      match qualid_string_of_json qid_json with
+      match qualid_occurrence_of_json ~lines qid_json with
       | None -> acc
-      | Some qid ->
-        let range =
-          Stdlib.Option.bind
-            (value_for_key "loc" qid_json)
-            (loc_range_of_json ~lines)
-        in
-        { qid; range } :: acc)
+      | Some occ -> occ :: acc)
     | _ -> acc
   in
   match json with
   | `Assoc fields ->
-    List.fold_left (fun acc (_, value) -> cref_occurrences ~lines acc value) acc fields
-  | `List values -> List.fold_left (cref_occurrences ~lines) acc values
+    List.fold_left
+      (fun acc (_, value) -> qualid_occurrences ~lines acc value)
+      acc fields
+  | `List values -> List.fold_left (qualid_occurrences ~lines) acc values
   | _ -> acc
 
 let starts_with ~prefix s =
@@ -518,10 +530,10 @@ let deps_from_ast_json ~token ~(st : Coq.State.t) ~(locals : SSet.t)
     match ast_json with
     | None -> []
     | Some ast_json ->
-      cref_occurrences ~lines [] ast_json
+      qualid_occurrences ~lines [] ast_json
       |> List.filter (fun { qid; _ } ->
              let base = basename_of_qualid qid in
-             not (SSet.mem base locals))
+             String.contains qid '.' || not (SSet.mem base locals))
   in
   let qids =
     List.fold_left (fun acc { qid; _ } -> SSet.add qid acc) SSet.empty occurrences
@@ -541,7 +553,7 @@ let deps_from_ast_json ~token ~(st : Coq.State.t) ~(locals : SSet.t)
     |> Stdlib.Option.fold ~none:[] ~some:(fun by_qid ->
            let by_name =
              List.fold_left
-               (fun by_name ({ qid; range } : cref_occurrence) ->
+               (fun by_name ({ qid; range } : qualid_occurrence) ->
                  match SMap.find_opt qid by_qid with
                  | None -> by_name
                  | Some dep ->
