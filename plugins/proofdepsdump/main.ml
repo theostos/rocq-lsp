@@ -430,10 +430,11 @@ let axioms_of_proof ~token ~(st : Coq.State.t) ~(proof_name : string) =
       let qid = Libnames.qualid_of_string proof_name in
       let gr = Nametab.locate qid in
       let env = Global.env () in
+      let cstr, _ = UnivGen.fresh_global_instance env gr in
       let ts = Conv_oracle.get_transp_state (Environ.oracle env) in
       let opaque_access = (Library.indirect_accessor [@warning "-3"]) in
       let assumptions =
-        Assumptions.assumptions opaque_access ts [ gr ]
+        Assumptions.assumptions opaque_access ts gr cstr
       in
       Printer.ContextObjectMap.fold
         (fun obj _ty acc ->
