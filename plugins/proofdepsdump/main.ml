@@ -14,6 +14,7 @@ module Dep = struct
   type t =
     { name : string
     ; logical_path : string
+    ; physical_path : string option
     ; locations : Location.t list
     }
   [@@deriving to_yojson]
@@ -421,7 +422,21 @@ let dep_of_global (gr : Names.GlobRef.t) =
       let dirpath, _ = Libnames.repr_path full_path in
       Names.DirPath.to_string dirpath
     in
-    Some Dep.{ name; logical_path; locations = [] }
+    let rec library_path_of_dirpath dirpath =
+      match Loadpath.locate_absolute_library dirpath with
+      | Ok path -> Some (CUnix.string_of_physical_path path)
+      | Error _ -> (
+        match Names.DirPath.repr dirpath with
+        | _ :: (_ :: _ as parent_rev) ->
+          library_path_of_dirpath (Names.DirPath.make parent_rev)
+        | _ -> None)
+    in
+    let physical_path =
+      let full_path = Nametab.path_of_global gr in
+      let dirpath, _ = Libnames.repr_path full_path in
+      library_path_of_dirpath dirpath
+    in
+    Some Dep.{ name; logical_path; physical_path; locations = [] }
   with _ -> None
 
 let compare_dep (d1 : Dep.t) (d2 : Dep.t) =
