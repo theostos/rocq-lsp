@@ -369,7 +369,7 @@ let goal_hyp_of_reified (h : string Coq.Goals.Reified_goal.hyp) : GoalHyp.t =
 let goal_of_reified (g : string Coq.Goals.Reified_goal.t) : Goal.t =
   Goal.
     { evar = Evar.repr g.info.evar
-    ; name = Option.map Libnames.string_of_path g.info.name
+    ; name = Option.map Names.Id.to_string g.info.name
     ; hyps = List.map goal_hyp_of_reified g.hyps
     ; ty = g.ty
     }
