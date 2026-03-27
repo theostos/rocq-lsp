@@ -678,29 +678,33 @@ let mk_dump ~token ~(doc : Doc.t) =
   let asts =
     Doc.asts doc |> List.map (fun ast -> CoqJ.Ast.to_yojson ast.Doc.Node.Ast.v)
   in
-  let proofs = Hashtbl.create 17 in
+  let open_proofs = Hashtbl.create 17 in
   let order_rev : proof_acc list ref = ref [] in
   let next_id = ref 1 in
-  let ensure_proof name range =
-    match Hashtbl.find_opt proofs name with
+  let create_proof name range =
+    let p =
+      { proof_id = !next_id
+      ; name
+      ; start_range = range
+      ; statement_raw = None
+      ; statement_notations = []
+      ; axioms = None
+      ; initial_goals = None
+      ; initial_goals_set = false
+      ; next_step = 1
+      ; steps_rev = []
+      }
+    in
+    incr next_id;
+    order_rev := p :: !order_rev;
+    p
+  in
+  let ensure_open_proof name range =
+    match Hashtbl.find_opt open_proofs name with
     | Some p -> p
     | None ->
-      let p =
-        { proof_id = !next_id
-        ; name
-        ; start_range = range
-        ; statement_raw = None
-        ; statement_notations = []
-        ; axioms = None
-        ; initial_goals = None
-        ; initial_goals_set = false
-        ; next_step = 1
-        ; steps_rev = []
-        }
-      in
-      incr next_id;
-      Hashtbl.add proofs name p;
-      order_rev := p :: !order_rev;
+      let p = create_proof name range in
+      Hashtbl.replace open_proofs name p;
       p
   in
   let contents = doc.contents in
@@ -709,11 +713,23 @@ let mk_dump ~token ~(doc : Doc.t) =
       let pre_st = state_before ~doc node in
       let pre_name = proof_name_of_state pre_st in
       let post_name = proof_name_of_state node.state in
-      let proof_name = match post_name with Some n -> Some n | None -> pre_name in
-      match proof_name with
+      let p =
+        match (pre_name, post_name) with
+        | None, None -> None
+        | None, Some name ->
+          let p = create_proof name node.range in
+          Hashtbl.replace open_proofs name p;
+          Some p
+        | Some pre, Some post ->
+          if String.equal pre post then Some (ensure_open_proof post node.range)
+          else (
+            Hashtbl.remove open_proofs pre;
+            Some (ensure_open_proof post node.range))
+        | Some pre, None -> Some (ensure_open_proof pre node.range)
+      in
+      match p with
       | None -> ()
-      | Some proof_name ->
-        let p = ensure_proof proof_name node.range in
+      | Some p ->
         let raw = Fleche.Contents.extract_raw ~contents ~range:node.range in
         let ast_json = Option.map (fun n -> CoqJ.Ast.to_yojson n.Doc.Node.Ast.v) node.ast in
         let tactic_tags = tactic_tags_from_ast_json ast_json in
@@ -745,7 +761,10 @@ let mk_dump ~token ~(doc : Doc.t) =
           | None -> ());
         let locals = local_hyp_names_of_state pre_st in
         let deps = deps_from_ast_json ~token ~st:pre_st ~locals ~lines:contents.lines ast_json in
-        add_step p ~range:node.range ~raw ~tactic_tags ~notations ~deps ~goals_after)
+        add_step p ~range:node.range ~raw ~tactic_tags ~notations ~deps ~goals_after;
+        match (pre_name, post_name) with
+        | Some pre, None -> Hashtbl.remove open_proofs pre
+        | _ -> ())
     doc.nodes;
   let proofs =
     List.rev !order_rev
