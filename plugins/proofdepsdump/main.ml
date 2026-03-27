@@ -762,10 +762,12 @@ let mk_dump ~token ~(doc : Doc.t) =
         let goals_after = goals_of_state ~token ~st:node.state in
         if not p.initial_goals_set then (
           let candidate_initial_goals =
-            match (pre_name, post_name) with
-            | None, Some _ -> goals_after
-            | Some _, _ -> goals_of_state ~token ~st:pre_st
-            | None, None -> None
+            if is_statement_node then goals_after
+            else
+              match (pre_name, post_name) with
+              | Some _, _ -> goals_of_state ~token ~st:pre_st
+              | None, Some _ -> goals_after
+              | None, None -> None
           in
           match candidate_initial_goals with
           | Some goals ->
