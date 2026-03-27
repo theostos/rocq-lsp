@@ -675,25 +675,14 @@ let add_step (acc : proof_acc) ~range ~raw ~tactic_tags ~notations ~deps ~goals_
   acc.next_step <- acc.next_step + 1;
   acc.steps_rev <- step :: acc.steps_rev
 
-let proof_opening_prefixes =
-  [ "Goal"
-  ; "Lemma"
-  ; "Theorem"
-  ; "Remark"
-  ; "Fact"
-  ; "Corollary"
-  ; "Proposition"
-  ; "Example"
-  ; "Definition"
-  ; "Program Lemma"
-  ; "Program Definition"
-  ; "Next Obligation"
-  ; "Obligation"
-  ]
-
-let is_proof_opening_raw raw =
-  let raw = String.trim raw in
-  List.exists (fun prefix -> String.starts_with ~prefix raw) proof_opening_prefixes
+let is_proof_start_ast (ast : Doc.Node.Ast.t option) =
+  match ast with
+  | None -> false
+  | Some ast -> (
+    match (Coq.Ast.to_coq ast.Doc.Node.Ast.v).CAst.v.Vernacexpr.expr with
+    | Vernacexpr.VernacSynPure (VernacStartTheoremProof _)
+    | Vernacexpr.VernacSynPure (VernacDefinition (_, _, ProveBody _)) -> true
+    | _ -> false)
 
 let mk_dump ~token ~(doc : Doc.t) =
   let asts =
@@ -735,7 +724,7 @@ let mk_dump ~token ~(doc : Doc.t) =
       let pre_name = proof_name_of_state pre_st in
       let post_name = proof_name_of_state node.state in
       let raw = Fleche.Contents.extract_raw ~contents ~range:node.range in
-      let starts_new_proof = is_proof_opening_raw raw in
+      let starts_new_proof = is_proof_start_ast node.ast in
       let p, is_statement_node =
         match (pre_name, post_name) with
         | None, None -> (None, false)
