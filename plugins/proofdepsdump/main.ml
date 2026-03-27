@@ -675,6 +675,26 @@ let add_step (acc : proof_acc) ~range ~raw ~tactic_tags ~notations ~deps ~goals_
   acc.next_step <- acc.next_step + 1;
   acc.steps_rev <- step :: acc.steps_rev
 
+let proof_opening_prefixes =
+  [ "Goal"
+  ; "Lemma"
+  ; "Theorem"
+  ; "Remark"
+  ; "Fact"
+  ; "Corollary"
+  ; "Proposition"
+  ; "Example"
+  ; "Definition"
+  ; "Program Lemma"
+  ; "Program Definition"
+  ; "Next Obligation"
+  ; "Obligation"
+  ]
+
+let is_proof_opening_raw raw =
+  let raw = String.trim raw in
+  List.exists (fun prefix -> String.starts_with ~prefix raw) proof_opening_prefixes
+
 let mk_dump ~token ~(doc : Doc.t) =
   let asts =
     Doc.asts doc |> List.map (fun ast -> CoqJ.Ast.to_yojson ast.Doc.Node.Ast.v)
@@ -714,33 +734,36 @@ let mk_dump ~token ~(doc : Doc.t) =
       let pre_st = state_before ~doc node in
       let pre_name = proof_name_of_state pre_st in
       let post_name = proof_name_of_state node.state in
-      let p =
+      let raw = Fleche.Contents.extract_raw ~contents ~range:node.range in
+      let starts_new_proof = is_proof_opening_raw raw in
+      let p, is_statement_node =
         match (pre_name, post_name) with
-        | None, None -> None
+        | None, None -> (None, false)
         | None, Some name ->
           let p = create_proof name node.range in
           Hashtbl.replace open_proofs name p;
-          Some p
+          (Some p, true)
         | Some pre, Some post ->
-          if String.equal pre post then Some (ensure_open_proof post node.range)
+          if starts_new_proof then (
+            Hashtbl.remove open_proofs pre;
+            let p = create_proof post node.range in
+            Hashtbl.replace open_proofs post p;
+            (Some p, true))
+          else if String.equal pre post then (Some (ensure_open_proof post node.range), false)
           else (
             Hashtbl.remove open_proofs pre;
-            Some (ensure_open_proof post node.range))
-        | Some pre, None -> Some (ensure_open_proof pre node.range)
+            (Some (ensure_open_proof post node.range), false))
+        | Some pre, None -> (Some (ensure_open_proof pre node.range), false)
       in
       match p with
       | None -> ()
       | Some p ->
-        let raw = Fleche.Contents.extract_raw ~contents ~range:node.range in
         let ast_json = Option.map (fun n -> CoqJ.Ast.to_yojson n.Doc.Node.Ast.v) node.ast in
         let tactic_tags = tactic_tags_from_ast_json ast_json in
         let notations = notations_from_ast_json ~token ~st:pre_st ~lines:contents.lines ast_json in
-        if p.statement_raw = None then (
-          match (pre_name, post_name) with
-          | None, Some _ ->
-            p.statement_raw <- Some raw;
-            p.statement_notations <- notations
-          | _ -> ());
+        if p.statement_raw = None && is_statement_node then (
+          p.statement_raw <- Some raw;
+          p.statement_notations <- notations);
         if p.axioms = None then (
           match (pre_name, post_name) with
           | Some _, None ->
@@ -760,9 +783,10 @@ let mk_dump ~token ~(doc : Doc.t) =
             p.initial_goals <- Some goals;
             p.initial_goals_set <- true
           | None -> ());
-        let locals = local_hyp_names_of_state pre_st in
-        let deps = deps_from_ast_json ~token ~st:pre_st ~locals ~lines:contents.lines ast_json in
-        add_step p ~range:node.range ~raw ~tactic_tags ~notations ~deps ~goals_after;
+        if (not is_statement_node) && not (String.equal "" (String.trim raw)) then (
+          let locals = local_hyp_names_of_state pre_st in
+          let deps = deps_from_ast_json ~token ~st:pre_st ~locals ~lines:contents.lines ast_json in
+          add_step p ~range:node.range ~raw ~tactic_tags ~notations ~deps ~goals_after);
         match (pre_name, post_name) with
         | Some pre, None -> Hashtbl.remove open_proofs pre
         | _ -> ())
